@@ -22,3 +22,16 @@ The preview of the HTML template will be
 Hello User123! Your password is strongpassword and username is username1234
 ```
 
+# Frontend
+
+- A home page with the name of the project with contributors at the bottom.
+- "Login/Signup with google" page.
+- Main page where user uploads HTML template and CSV file. (If HTML template contains {} type variables, ask user from which field to take the values from).
+
+# Backend endpoint
+
+- OAuth2
+- Uploading CSV file and template
+- Replacing {} variables with the one in CSV file
+- Send email to recipient using multiple workers(asynchronous).
+
