@@ -22,9 +22,7 @@ const AuthContext = createContext<AuthContextType>({
   logout: () => {},
 });
 
-// Client ID would normally come from environment variables
-const GOOGLE_CLIENT_ID =
-  "932953421422-go6tu4retjmqt50p526ram3uf7hm3idr.apps.googleusercontent.com";
+const GOOGLE_CLIENT_ID ="";
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
