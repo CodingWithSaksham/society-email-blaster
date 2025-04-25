@@ -1,7 +1,9 @@
-from django.urls import path, include
-from .views import GoogleAuthInit, GoogleAuthCallback
+from django.urls import path
+from .views import GoogleLoginView, GoogleAuthCallbackView
+
+app_name = "oauth2"
 
 urlpatterns = [
-    path("login/", GoogleAuthInit.as_view()),
-    path("callback/", GoogleAuthCallback.as_view()),
+    path("login/", GoogleLoginView.as_view(), name="login"),
+    path("google/callback/", GoogleAuthCallbackView.as_view(), name="callback"),
 ]

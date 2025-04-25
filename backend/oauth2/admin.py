@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import GoogleProfile
+from .models import GoogleCredential
 
 # Register your models here.
-admin.site.register(GoogleProfile)
+admin.site.register(GoogleCredential)

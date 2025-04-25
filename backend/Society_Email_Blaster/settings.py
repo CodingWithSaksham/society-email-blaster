@@ -50,11 +50,14 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework.authtoken",
     "social_django",
+    "django_celery_beat",
+    "django_extensions",
 ]
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -94,15 +97,13 @@ DATABASES = {
     )
 }
 # Authentication
-AUTHENTICATION_BACKENDS = (
-    "social_core.backends.google.GoogleOAuth2",
-    "django.contrib.auth.backends.ModelBackend",
-)
+AUTHENTICATION_BACKENDS = ("oauth2.authentication.GoogleTokenAuthentication",)
 
 # Social Auth settings
 SOCIAL_AUTH_GOOGLE_OAUTH2_KEY = os.getenv("GOOGLE_CLIENT_ID")
 SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 SOCIAL_AUTH_GOOGLE_OAUTH2_SCOPE = [
+    "openid",
     "https://www.googleapis.com/auth/userinfo.email",
     "https://www.googleapis.com/auth/userinfo.profile",
     "https://www.googleapis.com/auth/gmail.send",
@@ -123,12 +124,12 @@ SOCIAL_AUTH_PIPELINE = (
 
 # Configure session settings
 SESSION_ENGINE = "django.contrib.sessions.backends.db"  # Use database-backed sessions
-SESSION_COOKIE_SECURE = False  # Set to True in production with HTTPS
+SESSION_COOKIE_SECURE = False if DEBUG else True  # Set to True in production with HTTPS
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_AGE = 1209600  # 2 weeks in seconds
 SESSION_SAVE_EVERY_REQUEST = True  # Save the session on every request
 
-LOGIN_URL = "login"
+LOGIN_URL = "auth/login"
 LOGIN_REDIRECT_URL = "auth/profile"
 LOGOUT_REDIRECT_URL = "login"
 
@@ -153,13 +154,13 @@ AUTH_PASSWORD_VALIDATORS = [
 # Rest Framework settings
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework.authentication.TokenAuthentication",
-        "rest_framework.authentication.SessionAuthentication",
+        "oauth2.authentication.GoogleTokenAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
 }
+
 
 # File upload settings
 MEDIA_URL = "/media/"
@@ -179,7 +180,13 @@ TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True
 
-
+# Celery settings
+CELERY_BROKER_URL = "redis://localhost:6379/0"
+CELERY_RESULT_BACKEND = "redis://localhost:6379/0"
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TIMEZONE = TIME_ZONE
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 

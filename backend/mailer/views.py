@@ -1,42 +1,13 @@
-import csv
-import io
-from rest_framework import viewsets, status, permissions
-from rest_framework.response import Response
+from rest_framework import viewsets, status
 from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from django.conf import settings
 
-from .models import EmailTemplate, EmailCampaign, EmailLog
-from .serializers import (
-    EmailTemplateSerializer,
-    EmailCampaignSerializer,
-    EmailLogSerializer,
-)
-from .tasks import parse_template_tags, process_campaign
-
-
-class IsAuthenticated(permissions.BasePermission):
-    """
-    Custom permission to only allow authenticated users.
-    """
-
-    def has_permission(self, request, view):
-        return request.user and request.user.is_authenticated
-
-
-class EmailTemplateViewSet(viewsets.ModelViewSet):
-    serializer_class = EmailTemplateSerializer
-    permission_classes = [IsAuthenticated]
-
-    def get_queryset(self):
-        return EmailTemplate.objects.filter(user=self.request.user)
-
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
-
-    @action(detail=True, methods=["get"])
-    def tags(self, request, pk=None):
-        template = self.get_object()
-        tags = parse_template_tags(template.html_content)
-        return Response({"tags": tags})
+from .serializers import EmailCampaignSerializer
+from .models import EmailCampaign
+from .utils import extract_tags_from_template, parse_excel_file
+from .tasks import process_email_campaign
 
 
 class EmailCampaignViewSet(viewsets.ModelViewSet):
@@ -44,72 +15,83 @@ class EmailCampaignViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return EmailCampaign.objects.filter(user=self.request.user)
+        return EmailCampaign.objects.filter(user=self.request.user).order_by(
+            "-created_at"
+        )
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
     @action(detail=True, methods=["post"])
-    def start(self, request, pk=None):
+    def start_campaign(self, request, pk=None):
         campaign = self.get_object()
 
-        if campaign.status not in ["pending", "failed"]:
-            return Response(
-                {"error": f"Campaign is already {campaign.status}"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        # Start processing campaign in a separate thread
-        import threading
-
-        thread = threading.Thread(
-            target=process_campaign, args=(campaign.id,), kwargs={"max_workers": 10}
-        )
-        thread.daemon = True
-        thread.start()
-
-        return Response({"status": "Campaign processing started"})
-
-    @action(detail=True, methods=["get"])
-    def preview_csv(self, request, pk=None):
-        campaign = self.get_object()
-        try:
-            csv_file = campaign.csv_file.open("r")
-            reader = csv.reader(io.StringIO(csv_file.read().decode("utf-8")))
-            rows = list(reader)
-
-            headers = rows[0] if rows else []
-            data = rows[1:6] if len(rows) > 1 else []  # Preview first 5 rows
-
+        # Check if campaign is already processing or completed
+        if campaign.status in ["processing", "completed"]:
             return Response(
                 {
-                    "headers": headers,
-                    "preview_rows": data,
-                    "total_rows": len(rows) - 1 if rows else 0,
-                }
-            )
-        except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-
-class EmailLogViewSet(viewsets.ReadOnlyModelViewSet):
-    serializer_class = EmailLogSerializer
-    permission_classes = [IsAuthenticated]
-
-    def get_queryset(self):
-        return EmailLog.objects.filter(campaign__user=self.request.user)
-
-    @action(detail=False, methods=["get"])
-    def by_campaign(self, request):
-        campaign_id = request.query_params.get("campaign_id")
-        if not campaign_id:
-            return Response(
-                {"error": "campaign_id parameter is required"},
+                    "status": "error",
+                    "message": f"Campaign is already {campaign.status}",
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        logs = EmailLog.objects.filter(
-            campaign_id=campaign_id, campaign__user=request.user
+        # Start the campaign processing task
+        process_email_campaign.delay(campaign.id)
+
+        # Update status
+        campaign.status = "processing"
+        campaign.save()
+
+        return Response(
+            {"status": "success", "message": "Campaign started successfully"}
         )
-        serializer = self.get_serializer(logs, many=True)
-        return Response(serializer.data)
+
+    @action(detail=False, methods=["post"])
+    def extract_template_tags(self, request):
+        html_template = request.data.get("html_template", "")
+
+        if not html_template:
+            return Response(
+                {"status": "error", "message": "HTML template is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        tags = extract_tags_from_template(html_template)
+
+        return Response({"status": "success", "tags": tags})
+
+    @action(detail=False, methods=["post"])
+    def validate_excel(self, request):
+        excel_file = request.FILES.get("excel_file")
+
+        if not excel_file:
+            return Response(
+                {"status": "error", "message": "Excel file is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            # Save the file temporarily
+            temp_file_path = f"{settings.MEDIA_ROOT}/temp/{excel_file.name}"
+            import os
+
+            os.makedirs(os.path.dirname(temp_file_path), exist_ok=True)
+
+            with open(temp_file_path, "wb+") as destination:
+                for chunk in excel_file.chunks():
+                    destination.write(chunk)
+
+            # Parse the Excel file
+            df = parse_excel_file(temp_file_path)
+
+            # Clean up the temp file
+            os.remove(temp_file_path)
+
+            # Return the headers
+            return Response({"status": "success", "headers": df.columns.tolist()})
+        except Exception as e:
+            return Response(
+                {"status": "error", "message": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )

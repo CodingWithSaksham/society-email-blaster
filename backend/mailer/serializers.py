@@ -1,57 +1,55 @@
 from rest_framework import serializers
-from .models import EmailTemplate, EmailCampaign, EmailLog
+from .models import EmailCampaign, TagMapping, EmailLog
 
 
-class EmailTemplateSerializer(serializers.ModelSerializer):
+class TagMappingSerializer(serializers.ModelSerializer):
     class Meta:
-        model = EmailTemplate
-        fields = ["id", "name", "html_content", "created_at", "updated_at"]
-        read_only_fields = ["user", "created_at", "updated_at"]
-
-
-class EmailCampaignSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = EmailCampaign
-        fields = [
-            "id",
-            "name",
-            "template",
-            "csv_file",
-            "email_field",
-            "subject",
-            "status",
-            "total_emails",
-            "sent_emails",
-            "failed_emails",
-            "created_at",
-            "updated_at",
-        ]
-        read_only_fields = [
-            "user",
-            "status",
-            "total_emails",
-            "sent_emails",
-            "failed_emails",
-            "created_at",
-            "updated_at",
-        ]
+        model = TagMapping
+        fields = ["id", "template_tag", "excel_header"]
 
 
 class EmailLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = EmailLog
+        fields = ["id", "recipient_email", "sent_at", "success", "error_message"]
+        read_only_fields = fields
+
+
+class EmailCampaignSerializer(serializers.ModelSerializer):
+    tag_mappings = TagMappingSerializer(many=True, required=False)
+    email_logs = EmailLogSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = EmailCampaign
         fields = [
             "id",
-            "campaign",
-            "recipient_email",
+            "name",
+            "subject",
+            "html_template",
+            "excel_file",
+            "created_at",
+            "updated_at",
             "status",
-            "error_message",
-            "sent_at",
+            "total_emails",
+            "sent_emails",
+            "failed_emails",
+            "tag_mappings",
+            "email_logs",
         ]
         read_only_fields = [
-            "campaign",
-            "recipient_email",
+            "created_at",
+            "updated_at",
             "status",
-            "error_message",
-            "sent_at",
+            "total_emails",
+            "sent_emails",
+            "failed_emails",
         ]
+
+    def create(self, validated_data):
+        tag_mappings_data = validated_data.pop("tag_mappings", [])
+        campaign = EmailCampaign.objects.create(**validated_data)
+
+        for tag_mapping_data in tag_mappings_data:
+            TagMapping.objects.create(campaign=campaign, **tag_mapping_data)
+
+        return campaign

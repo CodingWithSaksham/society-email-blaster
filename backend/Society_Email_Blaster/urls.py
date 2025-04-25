@@ -16,10 +16,27 @@ Including another URLconf
 """
 
 from django.contrib import admin
-from django.urls import include, path
+from django.urls import path, include
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+from rest_framework import status
+
+
+@api_view(["GET"])
+def test_auth(request):
+    user = request.user
+    if user.is_authenticated:
+        return Response({"message": f"Authenticated as {user.email}"})
+    else:
+        return Response(
+            {"message": "Not authenticated"}, status=status.HTTP_401_UNAUTHORIZED
+        )
+
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    path("auth/", include("oauth2.urls")),
-    path("api/", include("mailer.urls")),
+    path("oauth2/", include("oauth2.urls")),
+    path("mailer/", include("mailer.urls")),
+    path("auth/", include("social_django.urls", namespace="social")),
+    path("test/", test_auth),
 ]
