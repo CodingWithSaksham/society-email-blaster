@@ -1,5 +1,7 @@
+from django.db.models.query import QuerySet
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
+from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.conf import settings
@@ -14,17 +16,17 @@ class EmailCampaignViewSet(viewsets.ModelViewSet):
     serializer_class = EmailCampaignSerializer
     permission_classes = [IsAuthenticated]
 
-    def get_queryset(self):
+    def get_queryset(self) -> QuerySet[EmailCampaign]:
         return EmailCampaign.objects.filter(user=self.request.user).order_by(
             "-created_at"
         )
 
-    def perform_create(self, serializer):
+    def perform_create(self, serializer: EmailCampaignSerializer):
         serializer.save(user=self.request.user)
 
     @action(detail=True, methods=["post"])
-    def start_campaign(self, request, pk=None):
-        campaign = self.get_object()
+    def start_campaign(self, request: Request, pk: int | None = None):
+        campaign: EmailCampaign = self.get_object()
 
         # Check if campaign is already processing or completed
         if campaign.status in ["processing", "completed"]:
@@ -48,8 +50,8 @@ class EmailCampaignViewSet(viewsets.ModelViewSet):
         )
 
     @action(detail=False, methods=["post"])
-    def extract_template_tags(self, request):
-        html_template = request.data.get("html_template", "")
+    def extract_template_tags(self, request: Request):
+        html_template: str = request.data.get("html_template", "")
 
         if not html_template:
             return Response(
@@ -62,7 +64,7 @@ class EmailCampaignViewSet(viewsets.ModelViewSet):
         return Response({"status": "success", "tags": tags})
 
     @action(detail=False, methods=["post"])
-    def validate_excel(self, request):
+    def validate_excel(self, request: Request):
         excel_file = request.FILES.get("excel_file")
 
         if not excel_file:

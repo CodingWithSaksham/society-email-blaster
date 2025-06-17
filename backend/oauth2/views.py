@@ -39,7 +39,7 @@ class GoogleAuthCallbackView(APIView):
 
         try:
             # Set up the OAuth flow
-            redirect_uri = request.build_absolute_uri(reverse("oauth2:callback"))
+            redirect_uri: str = request.build_absolute_uri(reverse("oauth2:callback"))
             flow = Flow.from_client_secrets_file(
                 client_secrets_file=CLIENT_SECRETS,
                 scopes=settings.SOCIAL_AUTH_GOOGLE_OAUTH2_SCOPE,
@@ -139,29 +139,6 @@ class GoogleAuthCallbackView(APIView):
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
-class GoogleAuthStatusView(APIView):
-    def get(self, request):
-        try:
-            google_cred = GoogleCredential.objects.get(user=request.user)
-            is_expired = google_cred.token_expiry < timezone.now()
-
-            return Response(
-                {
-                    "authenticated": True,
-                    "email": request.user.email,
-                    "token_expired": is_expired,
-                }
-            )
-        except GoogleCredential.DoesNotExist:
-            return Response(
-                {
-                    "authenticated": False,
-                    "email": request.user.email if request.user.email else None,
-                    "token_expired": None,
-                }
-            )
-
-
 class GoogleLoginView(APIView):
     permission_classes = [AllowAny]
 
@@ -182,34 +159,3 @@ class GoogleLoginView(APIView):
         )
 
         return Response({"login_url": authorization_url}, status=status.HTTP_200_OK)
-
-
-class UserInfoView(APIView):
-    def get(self, request):
-        """
-        Return current user information
-        """
-        if not request.user.is_authenticated:
-            return Response(
-                {"authenticated": False}, status=status.HTTP_401_UNAUTHORIZED
-            )
-
-        # Check if user has Google credentials
-        has_google_credentials = False
-        try:
-            GoogleCredential.objects.get(user=request.user)
-            has_google_credentials = True
-        except GoogleCredential.DoesNotExist:
-            pass
-
-        return Response(
-            {
-                "authenticated": True,
-                "username": request.user.username,
-                "email": request.user.email,
-                "first_name": request.user.first_name,
-                "last_name": request.user.last_name,
-                "has_google_credentials": has_google_credentials,
-            },
-            status=status.HTTP_200_OK,
-        )
