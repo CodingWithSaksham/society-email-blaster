@@ -11,6 +11,12 @@ def excel_file_path(instance, filename):
     return os.path.join("excel_files", filename)
 
 
+def pdf_file_path(instance, filename):
+    ext = filename.split(".")[-1]
+    filename = f"{uuid.uuid4()}.{ext}"
+    return os.path.join("pdf_files", filename)
+
+
 class EmailCampaign(models.Model):
     STATUS_CHOICES = (
         ("pending", "Pending"),
@@ -22,8 +28,10 @@ class EmailCampaign(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     name = models.CharField(max_length=255)
     subject = models.CharField(max_length=255)
+    bcc_email = models.EmailField(blank=True, null=True)
     html_template = models.TextField()
     excel_file = models.FileField(upload_to=excel_file_path)
+    pdf_file = models.FileField(upload_to=pdf_file_path, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")

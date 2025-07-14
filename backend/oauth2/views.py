@@ -5,17 +5,15 @@
 import requests
 from os import path
 from django.conf import settings
-from django.contrib.auth import login, get_user_model
+from django.contrib.auth import get_user_model
 from django.urls import reverse
 from django.utils import timezone
 
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
-from rest_framework.authtoken.models import Token
 from rest_framework import status
 
-from social_django.models import UserSocialAuth
 from datetime import timedelta
 from google_auth_oauthlib.flow import Flow
 
@@ -28,6 +26,7 @@ User = get_user_model()
 
 class GoogleAuthCallbackView(APIView):
     permission_classes = [AllowAny]
+    authentication_classes = []
 
     def get(self, request):
         code = request.GET.get("code")
@@ -95,22 +94,6 @@ class GoogleAuthCallbackView(APIView):
                     last_name=user_data.get("family_name", ""),
                 )
 
-                # Create social auth entry - user is now a User instance
-                UserSocialAuth.objects.create(
-                    user=user,  # This is now correctly a User instance
-                    provider="google-oauth2",
-                    uid=email,
-                    extra_data={
-                        "access_token": access_token,
-                        "refresh_token": refresh_token,
-                        "email": email,
-                        "expires": token_expiry.timestamp() if token_expiry else None,
-                    },
-                )
-
-            # Log the user in
-            login(request, user)
-
             # Save Google credentials - CAREFUL here, don't assign the result to user
             # This returns (instance, created) tuple
             cred_instance, _ = GoogleCredential.objects.update_or_create(
@@ -122,12 +105,9 @@ class GoogleAuthCallbackView(APIView):
                 },
             )
 
-            # Create DRF token
-            token, _ = Token.objects.get_or_create(user=user)
-
             # For debugging, return token as JSON
             return Response(
-                {"token": token.key, "user": user.username, "email": user.email},
+                {"token": access_token, "user": user.username, "email": user.email},
                 status=status.HTTP_200_OK,
             )
 
@@ -141,6 +121,7 @@ class GoogleAuthCallbackView(APIView):
 
 class GoogleLoginView(APIView):
     permission_classes = [AllowAny]
+    authentication_classes = []
 
     def get(self, request):
         """

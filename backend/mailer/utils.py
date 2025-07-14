@@ -1,3 +1,4 @@
+import os
 import re
 import pandas as pd
 import base64
@@ -5,7 +6,11 @@ import logging
 
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
+
 from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.application import MIMEApplication
+
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
@@ -91,9 +96,14 @@ def replace_tags_in_template(html_template: str, df_row: pd.Series) -> str:
 
 
 def send_email_with_gmail_api(
-    user_credentials, to_email: str, subject: str, html_content: str
+    user_credentials,
+    to_email: str,
+    subject: str,
+    html_content: str,
+    pdf_path: str | None = None,
+    bcc_email: str | None = None,
 ) -> tuple[bool, str | None]:
-    """Send email using Gmail API"""
+    """Send email using Gmail API with optional PDF attachment and BCC"""
     try:
         creds = Credentials(
             token=user_credentials.access_token,
@@ -104,14 +114,33 @@ def send_email_with_gmail_api(
         )
         service = build("gmail", "v1", credentials=creds)
 
-        message = MIMEText(html_content, "html")
+        # Create multipart message
+        message = MIMEMultipart()
         message["to"] = to_email
         message["subject"] = subject
+        if bcc_email:
+            message["bcc"] = bcc_email
 
+        # Attach HTML content
+        message.attach(MIMEText(html_content, "html"))
+
+        # Attach PDF if provided
+        if pdf_path:
+            with open(pdf_path, "rb") as f:
+                pdf_part = MIMEApplication(f.read(), _subtype="pdf")
+                pdf_part.add_header(
+                    "Content-Disposition",
+                    "attachment",
+                    filename=os.path.basename(pdf_path),
+                )
+                message.attach(pdf_part)
+
+        # Encode and send
         raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
         sent = service.users().messages().send(userId="me", body={"raw": raw}).execute()
         logger.info(f"Email sent to {to_email}: id {sent.get('id')}")
         return True, None
+
     except Exception as e:
         logger.error(f"Failed to send email to {to_email}: {e}")
         return False, str(e)

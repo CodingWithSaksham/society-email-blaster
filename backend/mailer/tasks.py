@@ -19,6 +19,9 @@ logger = logging.getLogger(__name__)
 def process_email_campaign(campaign_id: int) -> str:
     try:
         campaign = EmailCampaign.objects.get(id=campaign_id)
+        pdf_path = campaign.pdf_file.path if campaign.pdf_file else None
+        bcc_email = campaign.bcc_email if campaign.bcc_email else None
+
         campaign.status = "processing"
         campaign.save()
 
@@ -52,6 +55,8 @@ def process_email_campaign(campaign_id: int) -> str:
                 email,
                 campaign.subject,
                 html_content,
+                pdf_path,
+                bcc_email,
             )
 
             EmailLog.objects.create(

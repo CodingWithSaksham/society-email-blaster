@@ -51,7 +51,6 @@ INSTALLED_APPS = [
     "rest_framework.authtoken",
     "social_django",
     "django_celery_beat",
-    "django_extensions",
 ]
 
 MIDDLEWARE = [

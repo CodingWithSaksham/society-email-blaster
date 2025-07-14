@@ -45,5 +45,5 @@ class GoogleTokenAuthentication(BaseAuthentication):
 
         return (user, token)
 
-    def authenticate_header(self, request):
+    def authenticate_header(self, request):  # type: ignore pyright will give a mis-matched type warning here
         return "Bearer"
