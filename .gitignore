@@ -175,3 +175,4 @@ cython_debug/
 
 # Google Client Secret
 client_secrets.json
+media/
